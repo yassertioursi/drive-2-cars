@@ -1,0 +1,47 @@
+name: drive_two_cars
+description: "A coordination-based arcade game where you drive two cars simultaneously."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Game engine — Flame provides the game loop, components, and collision detection.
+  flame: ^1.20.0
+
+  # State management — Cubit drives UI/game status transitions.
+  flutter_bloc: ^9.1.1
+
+  # Local persistence for high score.
+  shared_preferences: ^2.5.3
+
+  # Value equality helpers for entities and states.
+  equatable: ^2.0.7
+
+  # Arcade-style typography (Orbitron).
+  google_fonts: ^6.2.1
+  change_app_package_name: ^1.5.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+  # All visuals are drawn procedurally — no external image assets required.
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/logo.png"
+  min_sdk_android: 21
