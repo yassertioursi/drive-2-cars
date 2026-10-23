@@ -1,5 +1,5 @@
-name: drive_two_cars
-description: "A coordination-based arcade game where you drive two cars simultaneously."
+name: cars_drive
+description: "Cars Drive — a dusk-highway arcade game: steer two cars, dodge cones and keep the fuel tank alive."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -13,21 +13,17 @@ dependencies:
 
   cupertino_icons: ^1.0.8
 
-  # Game engine — Flame provides the game loop, components, and collision detection.
+  # Game engine — Flame provides the game loop, components and collisions.
   flame: ^1.20.0
 
   # State management — Cubit drives UI/game status transitions.
   flutter_bloc: ^9.1.1
 
-  # Local persistence for high score.
+  # Local persistence for the best score.
   shared_preferences: ^2.5.3
 
   # Value equality helpers for entities and states.
   equatable: ^2.0.7
-
-  # Arcade-style typography (Orbitron).
-  google_fonts: ^6.2.1
-  change_app_package_name: ^1.5.0
 
 dev_dependencies:
   flutter_test:
@@ -38,7 +34,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  # All visuals are drawn procedurally — no external image assets required.
 
 flutter_launcher_icons:
   android: "launcher_icon"

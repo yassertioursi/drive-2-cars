@@ -5,14 +5,10 @@ import 'package:flutter/material.dart';
 import '../../core/constants/game_constants.dart';
 import '../../domain/entities/obstacle_entity.dart';
 import '../../presentation/cubits/game_cubit.dart';
+import '../../presentation/cubits/game_state.dart';
 import 'car_component.dart';
 
-/// A single falling obstacle (circle = points, square = game-over).
-///
-/// Mixes in [CollisionCallbacks] so Flame's collision system can notify it
-/// when it overlaps with a [CarComponent].
-///
-/// The component removes itself when it exits the bottom of its half-screen.
+/// A single falling object: an amber fuel can (pickup) or a traffic cone (hazard).
 class ObstacleComponent extends PositionComponent with CollisionCallbacks {
   ObstacleComponent({
     required this.entity,
@@ -24,39 +20,30 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
   final GameCubit gameCubit;
   final double halfHeight;
 
-  /// Guards against triggering the cubit multiple times per collision.
   bool _hasCollided = false;
 
-  // ── Colours ───────────────────────────────────────────────────────────────
-  static const _circleColor = Color(0xFFAAFF00); // lime — collectable
-  static const _squareColor = Color(0xFFFF0080); // hot-pink — danger
-
-  Color get _color =>
-      entity.type == ObstacleType.circle ? _circleColor : _squareColor;
+  bool get _isFuel => entity.type == ObstacleType.fuel;
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Add the appropriate hitbox shape.
-    if (entity.type == ObstacleType.circle) {
-      final r = GameConstants.circleRadius;
-      size = Vector2(r * 2, r * 2);
-      add(CircleHitbox(radius: r, anchor: Anchor.center));
+    if (_isFuel) {
+      size = Vector2(GameConstants.fuelWidth, GameConstants.fuelHeight);
+      add(CircleHitbox(radius: 14, anchor: Anchor.center));
     } else {
-      final s = GameConstants.squareHalfSize * 2;
-      size = Vector2(s, s);
-      add(RectangleHitbox(size: Vector2.all(s), anchor: Anchor.center));
+      size = Vector2(GameConstants.coneWidth, GameConstants.coneHeight);
+      add(RectangleHitbox(
+        size: Vector2(GameConstants.coneWidth * 0.7, GameConstants.coneHeight * 0.55),
+        anchor: Anchor.center,
+      ));
     }
   }
 
   @override
   void update(double dt) {
     super.update(dt);
-    // Move downward.
     y += entity.speed * dt;
-
-    // Despawn once past the bottom of the half-screen.
     if (y > halfHeight + 60) {
       removeFromParent();
     }
@@ -64,57 +51,154 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
 
   @override
   void render(Canvas canvas) {
-    final glowPaint = Paint()
-      ..color = _color.withValues(alpha: 0.5)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-    final fillPaint = Paint()..color = _color.withValues(alpha: 0.85);
-    final rimPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.6)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    if (entity.type == ObstacleType.circle) {
-      final r = GameConstants.circleRadius;
-      // Glow
-      canvas.drawCircle(Offset.zero, r + 6, glowPaint);
-      // Fill
-      canvas.drawCircle(Offset.zero, r, fillPaint);
-      // Rim
-      canvas.drawCircle(Offset.zero, r, rimPaint);
-      // Inner highlight
-      canvas.drawCircle(
-        const Offset(-4, -4),
-        r * 0.3,
-        Paint()..color = Colors.white.withValues(alpha: 0.35),
-      );
+    if (_isFuel) {
+      _renderFuelCan(canvas);
     } else {
-      final s = GameConstants.squareHalfSize;
-      final rect = Rect.fromCenter(center: Offset.zero, width: s * 2, height: s * 2);
-      // Glow
-      canvas.drawRect(
-        rect.inflate(6),
-        glowPaint,
-      );
-      // Fill
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-        fillPaint,
-      );
-      // Rim
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-        rimPaint,
-      );
-      // Danger X mark
-      final xPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.6)
-        ..strokeWidth = 2.5;
-      canvas.drawLine(Offset(-s * 0.4, -s * 0.4), Offset(s * 0.4, s * 0.4), xPaint);
-      canvas.drawLine(Offset(s * 0.4, -s * 0.4), Offset(-s * 0.4, s * 0.4), xPaint);
+      _renderCone(canvas);
     }
   }
 
-  // ── Collision handling ────────────────────────────────────────────────────
+  // ── Fuel can ────────────────────────────────────────────────────────────
+
+  void _renderFuelCan(Canvas canvas) {
+    final w = size.x;
+    final h = size.y;
+    final rect = Rect.fromLTWH(0, 0, w, h);
+
+    canvas.drawCircle(
+      Offset(w / 2, h / 2),
+      w * 0.72,
+      Paint()
+        ..color = GameConstants.fuelColor.withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+    );
+
+    // Cap
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.36, 0, w * 0.28, 7),
+        const Radius.circular(2),
+      ),
+      Paint()..color = const Color(0xFF8A5A12),
+    );
+
+    // Handle
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.22, 3, w * 0.56, 8),
+        const Radius.circular(4),
+      ),
+      Paint()
+        ..color = const Color(0xFF8A5A12)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+
+    // Body
+    final body = RRect.fromRectAndRadius(
+      Rect.fromLTWH(1, 7, w - 2, h - 9),
+      const Radius.circular(5),
+    );
+    canvas.drawRRect(
+      body,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            GameConstants.fuelColor,
+            GameConstants.fuelColor.withValues(alpha: 0.75),
+          ],
+        ).createShader(rect),
+    );
+    canvas.drawRRect(
+      body,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3,
+    );
+
+    // Lightning bolt
+    final bolt = Path()
+      ..moveTo(w * 0.56, h * 0.30)
+      ..lineTo(w * 0.36, h * 0.55)
+      ..lineTo(w * 0.49, h * 0.55)
+      ..lineTo(w * 0.43, h * 0.78)
+      ..lineTo(w * 0.65, h * 0.50)
+      ..lineTo(w * 0.51, h * 0.50)
+      ..close();
+    canvas.drawPath(bolt, Paint()..color = const Color(0xFF241A2B));
+  }
+
+  // ── Traffic cone ────────────────────────────────────────────────────────
+
+  void _renderCone(Canvas canvas) {
+    final w = size.x;
+    final h = size.y;
+
+    // Base
+    canvas.drawOval(
+      Rect.fromLTWH(-2, h * 0.84, w + 4, h * 0.16),
+      Paint()..color = const Color(0xFF241A2B),
+    );
+    canvas.drawOval(
+      Rect.fromLTWH(-2, h * 0.84, w + 4, h * 0.16),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.18)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+
+    final body = Path()
+      ..moveTo(w / 2, 0)
+      ..lineTo(w * 0.96, h * 0.87)
+      ..lineTo(w * 0.04, h * 0.87)
+      ..close();
+
+    canvas.drawPath(
+      body,
+      Paint()
+        ..color = GameConstants.coneColor.withValues(alpha: 0.45)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+    canvas.drawPath(
+      body,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            GameConstants.coneColor.withValues(alpha: 0.98),
+            GameConstants.coneColor.withValues(alpha: 0.72),
+          ],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
+    canvas.drawPath(
+      body,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2,
+    );
+
+    // Reflective white band
+    double halfWidthAt(double y) => (y / (h * 0.87)) * (w / 2);
+    final y1 = h * 0.50;
+    final y2 = h * 0.64;
+    final band = Path()
+      ..moveTo(w / 2 - halfWidthAt(y1), y1)
+      ..lineTo(w / 2 + halfWidthAt(y1), y1)
+      ..lineTo(w / 2 + halfWidthAt(y2), y2)
+      ..lineTo(w / 2 - halfWidthAt(y2), y2)
+      ..close();
+    canvas.drawPath(
+      band,
+      Paint()..color = GameConstants.laneWhite.withValues(alpha: 0.9),
+    );
+  }
+
+  // ── Collision handling ──────────────────────────────────────────────────
 
   @override
   void onCollisionStart(
@@ -123,15 +207,15 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
   ) {
     super.onCollisionStart(intersectionPoints, other);
 
-    // Only react to car collisions and only once per obstacle.
-    if (_hasCollided || other is! CarComponent) return;
+    if (_hasCollided || gameCubit.state is! GamePlaying) return;
+    if (other is! CarComponent) return;
     _hasCollided = true;
 
-    if (entity.type == ObstacleType.circle) {
+    if (_isFuel) {
       gameCubit.incrementScore();
       removeFromParent();
     } else {
-      gameCubit.triggerGameOver();
+      gameCubit.triggerGameOver(reason: GameOverReason.crash);
     }
   }
 }

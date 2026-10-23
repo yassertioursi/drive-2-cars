@@ -1,10 +1,10 @@
 import 'package:equatable/equatable.dart';
 
-/// The two kinds of obstacle that can appear on each road half.
+/// The two things that can appear on a lane in Cars Drive.
 ///
-/// - [circle] — collectable: awards points on contact.
-/// - [square] — danger: triggers game-over on contact.
-enum ObstacleType { circle, square }
+/// - [fuel] — a fuel can: awards points and refills the tank on contact.
+/// - [cone] — a traffic cone: ends the run on contact.
+enum ObstacleType { fuel, cone }
 
 /// Pure domain entity describing a single obstacle instance.
 ///
@@ -18,11 +18,10 @@ class ObstacleEntity extends Equatable {
     required this.speed,
   });
 
-  /// Whether this obstacle collects points or ends the game.
+  /// Whether this obstacle is a pickup or a hazard.
   final ObstacleType type;
 
   /// Normalised X position within the half-screen (0.0 = left edge, 1.0 = right edge).
-  /// Maps to one of the two lane positions defined in [GameConstants].
   final double laneNormX;
 
   /// Current Y position in logical pixels from the top of the half-screen.

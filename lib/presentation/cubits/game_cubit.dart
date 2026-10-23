@@ -1,14 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/constants/game_constants.dart';
 import '../../domain/use_cases/get_high_score_use_case.dart';
 import '../../domain/use_cases/save_high_score_use_case.dart';
 import 'game_state.dart';
 
-/// Cubit that drives all game-status transitions.
+/// Cubit that drives every game-status transition.
 ///
-/// The Flame game layer calls the mutating methods ([startGame],
-/// [incrementScore], [triggerGameOver]) in response to game events.
-/// Flutter overlay widgets listen to the emitted [GameState] stream.
+/// The Flame layer reports events (fuel burn, pickups, crashes) and the
+/// Flutter overlays listen to the emitted [GameState].
 class GameCubit extends Cubit<GameState> {
   GameCubit({
     required GetHighScoreUseCase getHighScore,
@@ -20,31 +22,33 @@ class GameCubit extends Cubit<GameState> {
   final GetHighScoreUseCase _getHighScore;
   final SaveHighScoreUseCase _saveHighScore;
 
-  // ── Public API called by the Flame game ───────────────────────────────────
+  // ── Called by the Flame game ──────────────────────────────────────────────
 
-  /// Transitions to [GamePlaying] and loads the stored high score.
+  /// Starts a fresh run with a full tank.
   Future<void> startGame() async {
     final highScore = await _getHighScore();
-    emit(GamePlaying(score: 0, highScore: highScore));
+    emit(GamePlaying(
+      score: 0,
+      highScore: highScore,
+      fuel: GameConstants.maxFuel,
+    ));
   }
 
-  /// Transitions to [GamePaused], preserving the current score.
-  void pauseGame() {
+  /// Burns [amount] fuel. Emptying the tank ends the run.
+  void consumeFuel(double amount) {
     final current = state;
-    if (current is GamePlaying) {
-      emit(GamePaused(score: current.score, highScore: current.highScore));
+    if (current is! GamePlaying) return;
+
+    final remaining = current.fuel - amount;
+    if (remaining <= 0) {
+      emit(current.withFuel(0));
+      unawaited(triggerGameOver(reason: GameOverReason.outOfFuel));
+    } else {
+      emit(current.withFuel(remaining));
     }
   }
 
-  /// Resumes from [GamePaused] back to [GamePlaying].
-  void resumeGame() {
-    final current = state;
-    if (current is GamePaused) {
-      emit(GamePlaying(score: current.score, highScore: current.highScore));
-    }
-  }
-
-  /// Called each time the player collects a circle obstacle (+1 point).
+  /// Called when a fuel can is collected: +1 point and a refill.
   void incrementScore() {
     final current = state;
     if (current is GamePlaying) {
@@ -52,11 +56,10 @@ class GameCubit extends Cubit<GameState> {
     }
   }
 
-  /// Called when the car hits a square obstacle.
-  ///
-  /// Compares [finalScore] to the stored high score, saves if it's a new
-  /// record, then emits [GameOver].
-  Future<void> triggerGameOver() async {
+  /// Called when a cone is hit.
+  Future<void> triggerGameOver({
+    GameOverReason reason = GameOverReason.crash,
+  }) async {
     final current = state;
     if (current is! GamePlaying) return;
 
@@ -68,6 +71,36 @@ class GameCubit extends Cubit<GameState> {
       await _saveHighScore(finalScore);
     }
 
-    emit(GameOver(finalScore: finalScore, highScore: highScore));
+    emit(GameOver(
+      finalScore: finalScore,
+      highScore: highScore,
+      reason: reason,
+    ));
   }
+
+  // ── Pause / menu ──────────────────────────────────────────────────────────
+
+  void pauseGame() {
+    final current = state;
+    if (current is GamePlaying) {
+      emit(GamePaused(
+        score: current.score,
+        highScore: current.highScore,
+        fuel: current.fuel,
+      ));
+    }
+  }
+
+  void resumeGame() {
+    final current = state;
+    if (current is GamePaused) {
+      emit(GamePlaying(
+        score: current.score,
+        highScore: current.highScore,
+        fuel: current.fuel,
+      ));
+    }
+  }
+
+  void quitToMenu() => emit(const GameInitial());
 }

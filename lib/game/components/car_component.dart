@@ -6,14 +6,15 @@ import 'package:flutter/material.dart';
 import '../../core/constants/game_constants.dart';
 import '../../domain/entities/car_entity.dart';
 
-/// Renders a single car as a neon-styled shape and handles lane switching.
+/// A top-down race car, drawn procedurally (body, stripe, spoiler, lights).
 ///
-/// The car is drawn procedurally (body, windscreen, wheels) — no sprites needed.
-/// Lane switches are animated with a [MoveToEffect] for smooth sliding.
+/// Lane switches slide the car across its half of the road with a short
+/// [MoveToEffect] tween.
 class CarComponent extends PositionComponent {
   CarComponent({
     required this.entity,
-    required this.carColor,
+    required this.bodyColor,
+    required this.accentColor,
     required this.halfWidth,
     required this.halfHeight,
   }) : super(
@@ -21,19 +22,12 @@ class CarComponent extends PositionComponent {
           anchor: Anchor.center,
         );
 
-  /// Domain entity driving lane state (updated by [toggleLane]).
   CarEntity entity;
-
-  /// The neon colour of this car.
-  final Color carColor;
-
-  /// Width of the half-screen this car operates on.
+  final Color bodyColor;
+  final Color accentColor;
   final double halfWidth;
-
-  /// Height of the half-screen.
   final double halfHeight;
 
-  // ── Lane X positions (local to the half-screen) ───────────────────────────
   double get _currentLaneX {
     final isLeft = entity.side == CarSide.left;
     final isInner = entity.lane == CarLane.inner;
@@ -46,16 +40,12 @@ class CarComponent extends PositionComponent {
   Future<void> onLoad() async {
     await super.onLoad();
     add(RectangleHitbox());
-    // Start in the correct lane immediately (no animation on first load).
     x = _currentLaneX;
     y = halfHeight * (1 - GameConstants.carBottomOffsetNorm);
   }
 
-  /// Toggles the car's domain entity lane and animates the component to the
-  /// new X position.
   void toggleLane() {
     entity = entity.toggleLane();
-    // Remove any in-progress move before starting a new one.
     removeWhere((c) => c is MoveToEffect);
     add(
       MoveToEffect(
@@ -65,7 +55,6 @@ class CarComponent extends PositionComponent {
     );
   }
 
-  /// Resets the car to the inner lane immediately for a new game.
   void reset() {
     entity = CarEntity(side: entity.side, lane: CarLane.inner);
     removeWhere((c) => c is MoveToEffect);
@@ -78,74 +67,141 @@ class CarComponent extends PositionComponent {
     final w = size.x;
     final h = size.y;
 
-    final bodyPaint = Paint()..color = carColor.withValues(alpha: 0.9);
-    final glowPaint = Paint()
-      ..color = carColor.withValues(alpha: 0.4)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
-    final darkPaint = Paint()..color = const Color(0xFF0D0D1A);
-    final windowPaint = Paint()
-      ..color = carColor.withValues(alpha: 0.25);
-
-    // ── Glow halo ─────────────────────────────────────────────────────────
+    // ── Accent glow halo ──────────────────────────────────────────────────
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(-4, -4, w + 8, h + 8),
-        const Radius.circular(10),
+        Rect.fromLTWH(-5, -5, w + 10, h + 10),
+        const Radius.circular(12),
       ),
-      glowPaint,
+      Paint()
+        ..color = accentColor.withValues(alpha: 0.28)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
     );
 
-    // ── Car body ──────────────────────────────────────────────────────────
+    // ── Body ──────────────────────────────────────────────────────────────
+    final body = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, w, h),
+      const Radius.circular(11),
+    );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, w, h),
-        const Radius.circular(8),
-      ),
-      bodyPaint,
+      body,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [bodyColor, bodyColor.withValues(alpha: 0.82)],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
+    canvas.drawRRect(
+      body,
+      Paint()
+        ..color = accentColor.withValues(alpha: 0.85)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
+    );
+
+    // ── Racing stripe ─────────────────────────────────────────────────────
+    canvas.drawRect(
+      Rect.fromLTWH(w * 0.43, 0, w * 0.14, h),
+      Paint()..color = accentColor.withValues(alpha: 0.9),
     );
 
     // ── Windscreen ────────────────────────────────────────────────────────
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.12, h * 0.08, w * 0.76, h * 0.28),
-        const Radius.circular(4),
-      ),
-      windowPaint,
+    final glass = Path()
+      ..moveTo(w * 0.24, h * 0.15)
+      ..lineTo(w * 0.76, h * 0.15)
+      ..lineTo(w * 0.66, h * 0.34)
+      ..lineTo(w * 0.34, h * 0.34)
+      ..close();
+    canvas.drawPath(glass, Paint()..color = const Color(0xFF1A1220));
+    canvas.drawPath(
+      glass,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.18)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
     );
 
     // ── Rear window ───────────────────────────────────────────────────────
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.18, h * 0.66, w * 0.64, h * 0.20),
-        const Radius.circular(4),
+        Rect.fromLTWH(w * 0.28, h * 0.56, w * 0.44, h * 0.12),
+        const Radius.circular(3),
       ),
-      windowPaint,
+      Paint()..color = const Color(0xFF1A1220).withValues(alpha: 0.9),
     );
 
-    // ── Wheels (4 squares) ────────────────────────────────────────────────
-    final wheelPaint = Paint()..color = darkPaint.color;
-    const ww = 10.0;
-    const wh = 16.0;
-    for (final (wx, wy) in [
-      (-ww * 0.6, h * 0.1),
-      (w - ww * 0.4, h * 0.1),
-      (-ww * 0.6, h * 0.72),
-      (w - ww * 0.4, h * 0.72),
-    ]) {
+    // ── Side wheels ───────────────────────────────────────────────────────
+    final wheel = Paint()..color = const Color(0xFF0B0810);
+    for (final y in [h * 0.18, h * 0.66]) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(wx, wy, ww, wh),
-          const Radius.circular(3),
+          Rect.fromLTWH(-2.5, y, 6, h * 0.16),
+          const Radius.circular(2),
         ),
-        wheelPaint,
+        wheel,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(w - 3.5, y, 6, h * 0.16),
+          const Radius.circular(2),
+        ),
+        wheel,
       );
     }
 
+    // ── Rear spoiler ──────────────────────────────────────────────────────
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(-5, h - 7, w + 10, 6),
+        const Radius.circular(2),
+      ),
+      Paint()..color = const Color(0xFF1A1220),
+    );
+    canvas.drawLine(
+      Offset(-4, h - 7),
+      Offset(w + 4, h - 7),
+      Paint()
+        ..color = accentColor.withValues(alpha: 0.9)
+        ..strokeWidth = 1.5,
+    );
+
+    // ── Tail lights ───────────────────────────────────────────────────────
+    final tail = Paint()
+      ..color = const Color(0xFFFF2D2D)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.12, h - 13, w * 0.18, 4),
+        const Radius.circular(2),
+      ),
+      tail,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.70, h - 13, w * 0.18, 4),
+        const Radius.circular(2),
+      ),
+      tail,
+    );
+
     // ── Headlights ────────────────────────────────────────────────────────
-    final lightPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.9)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-    canvas.drawCircle(Offset(w * 0.22, h * 0.04), 4, lightPaint);
-    canvas.drawCircle(Offset(w * 0.78, h * 0.04), 4, lightPaint);
+    final light = Paint()
+      ..color = GameConstants.laneWhite
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.16, 1.5, w * 0.16, 3),
+        const Radius.circular(1.5),
+      ),
+      light,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.68, 1.5, w * 0.16, 3),
+        const Radius.circular(1.5),
+      ),
+      light,
+    );
   }
 }

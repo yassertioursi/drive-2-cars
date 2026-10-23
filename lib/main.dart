@@ -9,11 +9,12 @@ import 'data/data_sources/local_score_data_source.dart';
 import 'data/repositories/score_repository_impl.dart';
 import 'domain/use_cases/get_high_score_use_case.dart';
 import 'domain/use_cases/save_high_score_use_case.dart';
-import 'game/drive_two_cars_game.dart';
+import 'game/cars_drive_game.dart';
 import 'presentation/cubits/game_cubit.dart';
 import 'presentation/widgets/game_over_overlay.dart';
 import 'presentation/widgets/hud_overlay.dart';
 import 'presentation/widgets/main_menu_overlay.dart';
+import 'presentation/widgets/pause_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,8 +22,15 @@ Future<void> main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: GameConstants.asphalt,
+    ),
+  );
 
-  // ── Dependency injection (manual, no service locator needed at this scale) ─
+  // ── Dependency injection (manual, no service locator at this scale) ──────
   final prefs = await SharedPreferences.getInstance();
   final dataSource = LocalScoreDataSource(prefs);
   final repository = ScoreRepositoryImpl(dataSource);
@@ -34,15 +42,12 @@ Future<void> main() async {
     saveHighScore: saveHighScore,
   );
 
-  runApp(DriveTwoCarsApp(gameCubit: gameCubit));
+  runApp(CarsDriveApp(gameCubit: gameCubit));
 }
 
-/// Root application widget.
-///
-/// Provides [GameCubit] to the entire widget tree and mounts
-/// [GameWidget] with the three Flutter overlays registered.
-class DriveTwoCarsApp extends StatelessWidget {
-  const DriveTwoCarsApp({super.key, required this.gameCubit});
+/// Root application widget: provides [GameCubit] and mounts the game.
+class CarsDriveApp extends StatelessWidget {
+  const CarsDriveApp({super.key, required this.gameCubit});
 
   final GameCubit gameCubit;
 
@@ -51,19 +56,17 @@ class DriveTwoCarsApp extends StatelessWidget {
     return BlocProvider<GameCubit>.value(
       value: gameCubit,
       child: MaterialApp(
-        title: 'Drive Two Cars',
+        title: 'Cars Drive',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData.dark(),
+        theme: ThemeData.dark(useMaterial3: true).copyWith(
+          scaffoldBackgroundColor: GameConstants.asphalt,
+        ),
         home: _GameScreen(gameCubit: gameCubit),
       ),
     );
   }
 }
 
-/// Stateful screen that owns the [DriveTwoCarsGame] instance.
-///
-/// Using a [StatefulWidget] here ensures the game object lives exactly as long
-/// as the screen and is not recreated on widget rebuilds.
 class _GameScreen extends StatefulWidget {
   const _GameScreen({required this.gameCubit});
 
@@ -74,29 +77,31 @@ class _GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<_GameScreen> {
-  late final DriveTwoCarsGame _game;
+  late final CarsDriveGame _game;
 
   @override
   void initState() {
     super.initState();
-    _game = DriveTwoCarsGame(gameCubit: widget.gameCubit);
+    _game = CarsDriveGame(gameCubit: widget.gameCubit);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF000000),
+      backgroundColor: GameConstants.asphalt,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          Widget gameWidget = GameWidget<DriveTwoCarsGame>(
+          final gameWidget = GameWidget<CarsDriveGame>(
             game: _game,
-            // ── Overlay builders ───────────────────────────────────────────────
             overlayBuilderMap: {
-              GameConstants.overlayMainMenu: (context, game) => MainMenuOverlay(game: game),
+              GameConstants.overlayMainMenu: (context, game) =>
+                  MainMenuOverlay(game: game),
               GameConstants.overlayHud: (context, game) => const HudOverlay(),
-              GameConstants.overlayGameOver: (context, game) => GameOverOverlay(game: game),
+              GameConstants.overlayPause: (context, game) =>
+                  PauseOverlay(game: game),
+              GameConstants.overlayGameOver: (context, game) =>
+                  GameOverOverlay(game: game),
             },
-            // Show main menu on first launch.
             initialActiveOverlays: const [GameConstants.overlayMainMenu],
           );
 

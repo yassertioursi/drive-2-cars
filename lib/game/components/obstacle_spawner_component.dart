@@ -8,10 +8,10 @@ import '../../presentation/cubits/game_cubit.dart';
 import '../../presentation/cubits/game_state.dart';
 import 'obstacle_component.dart';
 
-/// Periodically spawns [ObstacleComponent]s on one half of the screen.
+/// Spawns fuel cans and traffic cones on one half of the road.
 ///
-/// Spawn interval and obstacle speed both increase with the player's score,
-/// creating a natural difficulty ramp without external difficulty states.
+/// Spawn rate and fall speed ramp up with the score, so the fuel pressure
+/// grows the longer a run lasts.
 class ObstacleSpawnerComponent extends Component with HasGameReference {
   ObstacleSpawnerComponent({
     required this.gameCubit,
@@ -22,38 +22,26 @@ class ObstacleSpawnerComponent extends Component with HasGameReference {
   });
 
   final GameCubit gameCubit;
-
-  /// Width of one half-screen in logical pixels.
   final double halfWidth;
-
-  /// Height of one full screen (= height of this half).
   final double halfHeight;
-
-  /// Whether this spawner is for the left side.
   final bool isLeftSide;
-
-  /// The PositionComponent that owns this spawner (obstacles are added to it).
   final PositionComponent parentComponent;
 
   final _rng = math.Random();
   double _elapsed = 0;
 
-  /// Current spawn interval — shrinks as score grows.
   double get _spawnInterval {
-    final score = _currentScore;
     final interval = GameConstants.spawnIntervalBase -
-        score * GameConstants.spawnIntervalDecreasePerPoint;
+        _currentScore * GameConstants.spawnIntervalDecreasePerPoint;
     return interval.clamp(
       GameConstants.spawnIntervalMin,
       GameConstants.spawnIntervalBase,
     );
   }
 
-  /// Current obstacle fall speed — grows as score grows.
   double get _obstacleSpeed {
-    final score = _currentScore;
     final speed = GameConstants.obstacleBaseSpeed +
-        score * GameConstants.speedIncreasePerPoint;
+        _currentScore * GameConstants.speedIncreasePerPoint;
     return speed.clamp(
       GameConstants.obstacleBaseSpeed,
       GameConstants.obstacleMaxSpeed,
@@ -74,7 +62,6 @@ class ObstacleSpawnerComponent extends Component with HasGameReference {
   void update(double dt) {
     super.update(dt);
 
-    // Only spawn during active gameplay.
     if (gameCubit.state is! GamePlaying) return;
 
     _elapsed += dt;
@@ -85,16 +72,14 @@ class ObstacleSpawnerComponent extends Component with HasGameReference {
   }
 
   void _spawnObstacle() {
-    // Randomly choose inner or outer lane.
     final useInner = _rng.nextBool();
     final normX = isLeftSide
         ? (useInner ? 0.75 : 0.25)
         : (useInner ? 0.25 : 0.75);
 
-    // 30% chance of spawning a square (danger), 70% circle (points).
-    final type = _rng.nextDouble() < 0.30
-        ? ObstacleType.square
-        : ObstacleType.circle;
+    final type = _rng.nextDouble() < GameConstants.fuelPickupChance
+        ? ObstacleType.fuel
+        : ObstacleType.cone;
 
     final entity = ObstacleEntity(
       type: type,

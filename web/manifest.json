@@ -1,6 +1,6 @@
 {
-    "name": "drive_two_cars",
-    "short_name": "drive_two_cars",
+    "name": "Cars Drive",
+    "short_name": "Cars Drive",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

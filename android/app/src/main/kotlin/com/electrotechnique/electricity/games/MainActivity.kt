@@ -1,4 +1,4 @@
-package com.d2c.drive2cars
+package com.electrotechnique.electricity.games
 
 import io.flutter.embedding.android.FlutterActivity
 
